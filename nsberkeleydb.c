@@ -54,7 +54,7 @@ static int      DbExec(Ns_DbHandle *handle, char *sql);
 static int      DbResetHandle(Ns_DbHandle *handle);
 static int      DbFree(Ns_DbHandle *handle);
 static int      DbShutdown(void *arg);
-static void     DbError(const char *errpfx, char *msg);
+static void     DbError(const DB_ENV *env,const char *errpfx, const char *msg);
 static Ns_Set  *DbBindRow(Ns_DbHandle *handle);
 
 static Ns_DbProc dbProcs[] = {
@@ -152,7 +152,7 @@ Ns_DbDriverInit(char *hModule, char *configPath)
       return NS_ERROR;
     }
     Ns_RegisterShutdown((Ns_Callback *)DbShutdown,0);
-    Ns_Log(Notice,"%s/%s: Home=%s, Cache=%ld, Flags=%x",dbName,hModule,dbHome,dbCacheSize,dbEnvFlags);
+    Ns_Log(Notice,"%s/%s: Home=%s, Cache=%ud, Flags=%x",dbName,hModule,dbHome,dbCacheSize,dbEnvFlags);
     Ns_DStringFree(&ds);
     return NS_OK;
 }
@@ -209,7 +209,7 @@ DbOpenDb(Ns_DbHandle *handle)
     }
     if(dbDbFlags) db->set_flags(db,dbDbFlags);
     if(dbPageSize) db->set_pagesize(db,dbPageSize);
-    if((rc = db->open(db,dbpath,0,dbtype,DB_CREATE|DB_THREAD|DB_DIRTY_READ,0664,0)) != 0) {
+    if((rc = db->open(db,0,dbpath,0,dbtype,DB_CREATE|DB_THREAD|DB_DIRTY_READ,0664)) != 0) {
       db->err(db,rc,"%s: open",handle->datasource);
       db->close(db,0);
       return NS_ERROR;
@@ -277,7 +277,7 @@ DbExec(Ns_DbHandle *handle, char *query)
       conn->cmd = DB_UPDATE;
       conn->key.data = query+4;
       if((conn->data.data = strstr(conn->key.data,dbDelimiter))) {
-        *((char*)conn->data.data)++ = 0;
+        *((char*)conn->data.data++) = 0;
         conn->data.size = strlen(conn->data.data)+1;
       }
       conn->key.size = strlen(conn->key.data)+1;
@@ -419,7 +419,7 @@ DbFlush(Ns_DbHandle *handle)
 }
 
 static void
-DbError(const char *errpfx, char *msg)
+DbError(const DB_ENV *env,const char *errpfx, const char *msg)
 {
      Ns_Log(Error,"nsberkeleydb: %s: %s",errpfx,msg);
 }
@@ -483,7 +483,7 @@ DbBindRow(Ns_DbHandle *handle)
  */
 
 static int
-DbCmd(ClientData dummy, Tcl_Interp *interp, int argc, char **argv)
+DbCmd(ClientData dummy, Tcl_Interp *interp, int argc, CONST char **argv)
 {
     Ns_DbHandle *handle;
 
@@ -491,7 +491,7 @@ DbCmd(ClientData dummy, Tcl_Interp *interp, int argc, char **argv)
       Tcl_AppendResult(interp,"wrong # args: should be ",argv[0]," cmd handle",0);
       return TCL_ERROR;
     }
-    if(Ns_TclDbGetHandle(interp,argv[2],&handle) != TCL_OK) return TCL_ERROR;
+    if(Ns_TclDbGetHandle(interp,(char*)argv[2],&handle) != TCL_OK) return TCL_ERROR;
     /* Make sure this is an Db handle before accessing handle->connection. */
     if(Ns_DbDriverName(handle) != dbName) {
       Tcl_AppendResult(interp,argv[1]," is not of type ",dbName,0);
