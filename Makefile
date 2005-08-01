@@ -5,12 +5,12 @@ endif
 #
 # Module name
 #
-MOD      =  nsberkeleydb.so
+MOD      =  nsdbbdb.so
 
 #
 # Objects to build.
 #
-OBJS     = nsberkeleydb.o
+OBJS     = nsdbbdb.o
 MODLIBS  = -ldb
 
 include  $(NAVISERVER)/include/Makefile.module

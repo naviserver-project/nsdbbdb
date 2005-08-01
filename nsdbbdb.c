@@ -118,9 +118,9 @@ Ns_DbDriverInit(char *hModule, char *configPath)
     }
     Ns_DStringInit(&ds);
     configPath = Ns_ConfigGetPath(0,0,"db","pool",hModule);
-    if(!(dbDelimiter = Ns_ConfigGet(configPath,"delimiter"))) dbDelimiter = "\n";
-    if((dbHome = Ns_ConfigGet(configPath,"home"))) Ns_DStringAppend(&ds,dbHome);
-    if(!ds.length) Ns_DStringPrintf(&ds,"%s/db",Ns_InfoHome());
+    if(!(dbDelimiter = Ns_ConfigGetValue(configPath,"delimiter"))) dbDelimiter = "\n";
+    if((dbHome = Ns_ConfigGetValue(configPath,"home"))) Ns_DStringAppend(&ds,dbHome);
+    if(!ds.length) Ns_DStringPrintf(&ds,"%s/db",Ns_InfoHomePath());
     dbHome = ns_strdup(ds.string);
     Ns_ConfigGetInt(configPath,"pagesize",&dbPageSize);
     Ns_ConfigGetInt(configPath,"cachesize",&dbCacheSize);
@@ -128,11 +128,11 @@ Ns_DbDriverInit(char *hModule, char *configPath)
     Ns_ConfigGetInt(configPath,"btminkey",&dbBtMinKey);
 
     // Db flags
-    if(!(str = Ns_ConfigGet(configPath,"dbflags"))) str = "";
+    if(!(str = Ns_ConfigGetValue(configPath,"dbflags"))) str = "";
     if(strstr(str,"dup")) dbDbFlags |= DB_DUP;
 
     // Environment flags
-    if(!(str = Ns_ConfigGet(configPath,"envflags"))) str = "";
+    if(!(str = Ns_ConfigGetValue(configPath,"envflags"))) str = "";
     if(!strstr(str,"nolock")) dbEnvFlags |= DB_INIT_LOCK;
     if(!strstr(str,"nolog")) dbEnvFlags |= DB_INIT_LOG;
     if(!strstr(str,"notxn")) dbEnvFlags |= DB_INIT_TXN;
@@ -516,6 +516,7 @@ DbInterpInit(Tcl_Interp *interp, void *arg)
 static int
 DbServerInit(char *hServer, char *hModule, char *hDriver)
 {
-    return Ns_TclInitInterps(hServer,DbInterpInit,NULL);
+    Ns_TclRegisterTrace(hServer, DbInterpInit, 0, NS_TCL_TRACE_CREATE);
+    return NS_OK;
 }
 
