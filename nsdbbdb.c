@@ -93,7 +93,7 @@ static unsigned int dbDbFlags = 0;
 static unsigned int dbBtMinKey = 0;
 static unsigned int dbPageSize = 0;
 static unsigned int dbCacheSize = 0;
-static unsigned int dbEnvFlags = DB_CREATE|DB_RECOVER|DB_THREAD|DB_INIT_MPOOL;
+static unsigned int dbEnvFlags = DB_CREATE|DB_THREAD|DB_INIT_MPOOL;
 
 NS_EXPORT int Ns_ModuleVersion = 1;
 
@@ -135,7 +135,7 @@ Ns_DbDriverInit(char *hModule, char *configPath)
     if(!(str = Ns_ConfigGetValue(configPath,"envflags"))) str = "";
     if(!strstr(str,"nolock")) dbEnvFlags |= DB_INIT_LOCK;
     if(!strstr(str,"nolog")) dbEnvFlags |= DB_INIT_LOG;
-    if(!strstr(str,"notxn")) dbEnvFlags |= DB_INIT_TXN;
+    if(!strstr(str,"notxn")) dbEnvFlags |= DB_INIT_TXN|DB_RECOVER;
     if(!strstr(str,"noprivate")) dbEnvFlags |= DB_PRIVATE;
     if(dbCacheSize) dbEnv->set_cachesize(dbEnv,0,dbCacheSize,0);
     dbEnv->set_lk_detect(dbEnv,DB_LOCK_DEFAULT);
@@ -151,7 +151,7 @@ Ns_DbDriverInit(char *hModule, char *configPath)
       dbEnv = 0;
       return NS_ERROR;
     }
-    Ns_RegisterShutdown((Ns_Callback *)DbShutdown,0);
+    Ns_RegisterAtShutdown((Ns_Callback *)DbShutdown,0);
     Ns_Log(Notice,"%s/%s: Home=%s, Cache=%ud, Flags=%x",dbName,hModule,dbHome,dbCacheSize,dbEnvFlags);
     Ns_DStringFree(&ds);
     return NS_OK;
@@ -363,7 +363,7 @@ DbGetRow(Ns_DbHandle *handle,Ns_Set *row)
     dbConn *conn = handle->connection;
 
     if(handle->verbose)
-      Ns_Log(Debug,"nsberkeleydb: getrow: %d: %d: %s %s",conn->cmd,conn->status,conn->key.data,conn->data.data);
+      Ns_Log(Debug,"nsberkeleydb: getrow: %d: %d: %s %s",conn->cmd,conn->status,(char*)conn->key.data,(char*)conn->data.data);
 
     if(!handle->fetchingRows) {
       Ns_Log(Error,"Ns_FreeTDS_GetRow(%s):  No rows waiting to fetch.",handle->datasource);
