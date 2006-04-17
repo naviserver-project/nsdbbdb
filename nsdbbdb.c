@@ -117,7 +117,7 @@ Ns_DbDriverInit(char *hModule, char *configPath)
       return NS_ERROR;
     }
     Ns_DStringInit(&ds);
-    configPath = Ns_ConfigGetPath(0,0,"db","pool",hModule);
+    configPath = Ns_ConfigGetPath(0,0,"db","pool",hModule,NULL);
     if(!(dbDelimiter = Ns_ConfigGetValue(configPath,"delimiter"))) dbDelimiter = "\n";
     if((dbHome = Ns_ConfigGetValue(configPath,"home"))) Ns_DStringAppend(&ds,dbHome);
     if(!ds.length) Ns_DStringPrintf(&ds,"%s/db",Ns_InfoHomePath());

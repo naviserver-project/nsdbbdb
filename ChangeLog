@@ -1,3 +1,7 @@
+2006-04-17  Vlad Seryakov  <seryakov@users.sf.net>
+
+	* fixed bug in the config initialization
+
 2005-06-16  Vlad Seryakov  <seryakov@users.sf.net>
 
 	* nsdbbdb: initial upload
