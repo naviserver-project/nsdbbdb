@@ -53,7 +53,7 @@ static int      DbCancel(Ns_DbHandle *handle);
 static int      DbExec(Ns_DbHandle *handle, char *sql);
 static int      DbResetHandle(Ns_DbHandle *handle);
 static int      DbFree(Ns_DbHandle *handle);
-static int      DbShutdown(void *arg);
+static void     DbShutdown(Ns_Time *time, void *arg);
 static void     DbError(const DB_ENV *env,const char *errpfx, const char *msg);
 static Ns_Set  *DbBindRow(Ns_DbHandle *handle);
 
@@ -122,10 +122,10 @@ Ns_DbDriverInit(char *hModule, char *configPath)
     if((dbHome = Ns_ConfigGetValue(configPath,"home"))) Ns_DStringAppend(&ds,dbHome);
     if(!ds.length) Ns_DStringPrintf(&ds,"%s/db",Ns_InfoHomePath());
     dbHome = ns_strdup(ds.string);
-    Ns_ConfigGetInt(configPath,"pagesize",&dbPageSize);
-    Ns_ConfigGetInt(configPath,"cachesize",&dbCacheSize);
-    Ns_ConfigGetInt(configPath,"hfactor",&dbHFactor);
-    Ns_ConfigGetInt(configPath,"btminkey",&dbBtMinKey);
+    Ns_ConfigGetInt(configPath,"pagesize",(int*)&dbPageSize);
+    Ns_ConfigGetInt(configPath,"cachesize",(int*)&dbCacheSize);
+    Ns_ConfigGetInt(configPath,"hfactor",(int*)&dbHFactor);
+    Ns_ConfigGetInt(configPath,"btminkey",(int*)&dbBtMinKey);
 
     // Db flags
     if(!(str = Ns_ConfigGetValue(configPath,"dbflags"))) str = "";
@@ -151,19 +151,18 @@ Ns_DbDriverInit(char *hModule, char *configPath)
       dbEnv = 0;
       return NS_ERROR;
     }
-    Ns_RegisterAtShutdown((Ns_Callback *)DbShutdown,0);
+    Ns_RegisterAtShutdown(DbShutdown,0);
     Ns_Log(Notice,"%s/%s: Home=%s, Cache=%ud, Flags=%x",dbName,hModule,dbHome,dbCacheSize,dbEnvFlags);
     Ns_DStringFree(&ds);
     return NS_OK;
 }
 
 
-static int
-DbShutdown(void *arg)
+static void
+DbShutdown(Ns_Time *time, void *arg)
 {
     if(dbEnv) dbEnv->close(dbEnv,0);
     dbEnv = 0;
-    return NS_OK;
 }
 
 static char*
@@ -209,7 +208,7 @@ DbOpenDb(Ns_DbHandle *handle)
     }
     if(dbDbFlags) db->set_flags(db,dbDbFlags);
     if(dbPageSize) db->set_pagesize(db,dbPageSize);
-    if((rc = db->open(db,0,dbpath,0,dbtype,DB_CREATE|DB_THREAD|DB_DIRTY_READ,0664)) != 0) {
+    if((rc = db->open(db,0,dbpath,0,dbtype,DB_CREATE|DB_THREAD,0664)) != 0) {
       db->err(db,rc,"%s: open",handle->datasource);
       db->close(db,0);
       return NS_ERROR;
@@ -274,16 +273,21 @@ DbExec(Ns_DbHandle *handle, char *query)
     }
 
     if(!strncasecmp(query,"PUT ",4)) {
+      char *ptr, orig = 0;
       conn->cmd = DB_UPDATE;
       conn->key.data = query+4;
-      if((conn->data.data = strstr(conn->key.data,dbDelimiter))) {
-        *((char*)conn->data.data++) = 0;
+      if((ptr = strstr(conn->key.data,dbDelimiter))) {
+        orig = *ptr;
+        *ptr = 0;
+        conn->data.data = ptr + 1;
         conn->data.size = strlen(conn->data.data)+1;
       }
       conn->key.size = strlen(conn->key.data)+1;
       conn->status = conn->db->put(conn->db,0,&conn->key,&conn->data,0);
-      // Avoid freeing static memory in DbFree
-      conn->key.data = conn->data.data = 0;
+      // Restore original delimiter
+      if (orig) {
+          *ptr = orig;
+      }
       if(!conn->status) return NS_DML;
       // Report error situation
       conn->db->err(conn->db,conn->status,"DB->put");
@@ -296,8 +300,6 @@ DbExec(Ns_DbHandle *handle, char *query)
       conn->key.data = query+4;
       conn->key.size = strlen(conn->key.data)+1;
       conn->status = conn->db->del(conn->db,0,&conn->key,0);
-      // Avoid freeing static memory in DbFree
-      conn->key.data = conn->data.data = 0;
       if(!conn->status) return NS_DML;
       // Report error situation
       conn->db->err(conn->db,conn->status,"DB->del");
@@ -313,9 +315,10 @@ DbExec(Ns_DbHandle *handle, char *query)
         Ns_DbSetException(handle,"ERROR",db_strerror(conn->status));
         return NS_ERROR;
       }
+      conn->key.flags = conn->data.flags = DB_DBT_REALLOC;
+      /* Range request, try to position cursor to the closest key */
       if(*(query+6)) {
-        /* Range request, try to position cursor to the closest key */
-        conn->key.data = query+7;
+        conn->key.data = ns_strdup(query+7);
         conn->key.size = strlen(conn->key.data)+1;
         conn->status = conn->cursor->c_get(conn->cursor,&conn->key,&conn->data,DB_SET_RANGE);
       } else {
@@ -339,9 +342,8 @@ DbExec(Ns_DbHandle *handle, char *query)
       conn->cmd = DB_GET;
       conn->key.data = query+4;
       conn->key.size = strlen(conn->key.data)+1;
+      conn->data.flags = DB_DBT_MALLOC;
       conn->status = conn->db->get(conn->db,NULL,&conn->key,&conn->data,0);
-      // Avoid freeing static memory in DbFree
-      conn->key.data = 0;
       switch(conn->status) {
        case 0:
        case DB_NOTFOUND:
@@ -429,11 +431,14 @@ DbFree(Ns_DbHandle *handle)
 {
     dbConn *conn = handle->connection;
 
-    ns_free(conn->key.data);
-    ns_free(conn->data.data);
+    if (conn->key.flags & (DB_DBT_MALLOC|DB_DBT_REALLOC)) {
+        ns_free(conn->key.data);
+    }
+    if (conn->data.flags & (DB_DBT_MALLOC|DB_DBT_REALLOC)) {
+        ns_free(conn->data.data);
+    }
     memset(&conn->key,0,sizeof(DBT));
     memset(&conn->data,0,sizeof(DBT));
-    conn->key.flags = conn->data.flags = DB_DBT_MALLOC;
     return NS_OK;
 }
 

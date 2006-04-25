@@ -1,3 +1,7 @@
+2006-04-25  Vlad Seryakov  <seryakov@users.sf.net>
+
+	* fixed bug with memory allocation
+
 2006-04-17  Vlad Seryakov  <seryakov@users.sf.net>
 
 	* fixed bug in the config initialization
