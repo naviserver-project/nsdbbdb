@@ -272,18 +272,28 @@ DbExec(Ns_DbHandle *handle, char *query)
       return NS_ERROR;
     }
 
-    if(!strncasecmp(query,"PUT ",4)) {
+    if(!strncasecmp(query,"PUT ",4) || !strncasecmp(query,"PUT/",4)) {
+      int flags = 0;
       char *ptr, orig = 0;
+      if (query[3] == '/') {
+          for (ptr = query+3; *ptr && *ptr != ' '; ptr++) {
+              if (*ptr == 'a') flags |= DB_APPEND; else
+              if (*ptr == 'd') flags |= DB_NODUPDATA; else
+              if (*ptr == 'o') flags |= DB_NOOVERWRITE;
+         }
+         conn->key.data = ptr + 1;
+      } else {
+         conn->key.data = query+4;
+      }
       conn->cmd = DB_UPDATE;
-      conn->key.data = query+4;
-      if((ptr = strstr(conn->key.data,dbDelimiter))) {
+      if((ptr = strstr(conn->key.data, dbDelimiter))) {
         orig = *ptr;
         *ptr = 0;
         conn->data.data = ptr + 1;
         conn->data.size = strlen(conn->data.data)+1;
       }
       conn->key.size = strlen(conn->key.data)+1;
-      conn->status = conn->db->put(conn->db,0,&conn->key,&conn->data,0);
+      conn->status = conn->db->put(conn->db,0,&conn->key,&conn->data,flags);
       // Restore original delimiter
       if (orig) {
           *ptr = orig;

@@ -63,17 +63,31 @@ Simple query language is used to talk to BerkeleyDB driver.
 The following commands are available:
 
    PUT key\ndata
+   PUT/a key\ndata
+   PUT/d key\ndata
+   PUT/o key\ndata
+   PUT/ad key\ndata
+   PUT/ao key\ndata
+   PUT/do key\ndata
+   PUT/ado key\ndata
    
      Updates/adds new key/data pair to the database. By default 
      delimiter between key and data is set to newline(\n) but can be changed
      unsing delimiter ns_param options.
      
+     Form PUT/flags adds additional flags to the put operations, any combination 
+     of flags can be specified after /. the flags are:
+     
+     a - DB_APPEND
+     d - DB_NODUPDATA
+     o - DB_NOOVERWRITE
+     
      Example:
         ns_db $db exec "PUT VA\nVirginia"
         ns_db $db exec "PUT VT\nVermont"
         ns_db $db exec "PUT NY\nNew York"
+        ns_db $db exec "PUT/a NY\nNew York City"
         
-
    DEL key
    
       Deletes key/data pair
