@@ -53,7 +53,7 @@ static int      DbCancel(Ns_DbHandle *handle);
 static int      DbExec(Ns_DbHandle *handle, char *sql);
 static int      DbResetHandle(Ns_DbHandle *handle);
 static int      DbFree(Ns_DbHandle *handle);
-static void     DbShutdown(Ns_Time *time, void *arg);
+static void     DbShutdown(void *arg);
 static void     DbError(const DB_ENV *env,const char *errpfx, const char *msg);
 static Ns_Set  *DbBindRow(Ns_DbHandle *handle);
 
@@ -94,6 +94,8 @@ static unsigned int dbBtMinKey = 0;
 static unsigned int dbPageSize = 0;
 static unsigned int dbCacheSize = 0;
 static unsigned int dbEnvFlags = DB_CREATE|DB_THREAD|DB_INIT_MPOOL;
+static Tcl_HashTable dbTable;
+static Ns_Mutex dbLock;
 
 NS_EXPORT int Ns_ModuleVersion = 1;
 
@@ -108,6 +110,8 @@ Ns_DbDriverInit(char *hModule, char *configPath)
       Ns_Log(Error,"nsberkeleydb: db_env has already been initialized");
       return NS_ERROR;
     }
+    Tcl_InitHashTable(&dbTable, TCL_ONE_WORD_KEYS);
+
     if(Ns_DbRegisterDriver(hModule,dbProcs) != NS_OK) {
       Ns_Log(Error,"nsberkeleydb: could not register the %s/%s driver",dbName,hModule);
       return NS_ERROR;
@@ -151,7 +155,7 @@ Ns_DbDriverInit(char *hModule, char *configPath)
       dbEnv = 0;
       return NS_ERROR;
     }
-    Ns_RegisterAtShutdown(DbShutdown,0);
+    Ns_RegisterAtExit(DbShutdown,0);
     Ns_Log(Notice,"%s/%s: Home=%s, Cache=%ud, Flags=%x",dbName,hModule,dbHome,dbCacheSize,dbEnvFlags);
     Ns_DStringFree(&ds);
     return NS_OK;
@@ -159,8 +163,21 @@ Ns_DbDriverInit(char *hModule, char *configPath)
 
 
 static void
-DbShutdown(Ns_Time *time, void *arg)
+DbShutdown(void *arg)
 {
+    dbConn *conn;
+    Tcl_HashEntry  *hPtr;
+    Tcl_HashSearch  search;
+
+    hPtr = Tcl_FirstHashEntry(&dbTable, &search);
+    while (hPtr != NULL) {
+     	conn = (dbConn*)Tcl_GetHashKey(&dbTable, hPtr);
+        if (conn->db) {
+            conn->db->close(conn->db,0);
+        }
+	hPtr = Tcl_NextHashEntry(&search);
+    }
+    Tcl_DeleteHashTable(&dbTable);
     if(dbEnv) dbEnv->close(dbEnv,0);
     dbEnv = 0;
 }
@@ -217,6 +234,9 @@ DbOpenDb(Ns_DbHandle *handle)
     conn->db = db;
     handle->connection = conn;
     handle->connected = NS_TRUE;
+    Ns_MutexLock(&dbLock);
+    Tcl_CreateHashEntry(&dbTable, (void*)conn, &rc);
+    Ns_MutexUnlock(&dbLock);
     return NS_OK;
 }
 
@@ -224,12 +244,19 @@ static int
 DbCloseDb(Ns_DbHandle *handle)
 {
     dbConn *conn = handle->connection;
+    Tcl_HashEntry  *hPtr;
 
     DbCancel(handle);
     conn->db->close(conn->db,0);
     ns_free(conn);
     handle->connection = 0;
     handle->connected = NS_FALSE;
+    Ns_MutexLock(&dbLock);
+    hPtr = Tcl_FindHashEntry(&dbTable, (void*)conn);
+    if (hPtr != NULL) {
+        Tcl_DeleteHashEntry(hPtr);
+    }
+    Ns_MutexUnlock(&dbLock);
     return NS_OK;
 }
 
