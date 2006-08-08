@@ -21,7 +21,7 @@
  *
  */
 
-/* 
+/*
  * nsberkeleydb.c --
  *
  *	AOLserver driver for the Sleepycat Database from
@@ -205,7 +205,7 @@ static char *DbDbType(void)
 
 /*
  * Does both the SQLAllocConnect AND the SQLConnect
- * 
+ *
  */
 
 static int DbOpenDb(Ns_DbHandle * handle)
@@ -470,6 +470,7 @@ static int DbFlush(Ns_DbHandle * handle)
 {
     dbConn *conn = handle->connection;
 
+    DbCancel(handle);
     conn->db->sync(conn->db, 0);
     return NS_OK;
 }
