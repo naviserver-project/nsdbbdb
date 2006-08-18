@@ -40,6 +40,7 @@
 #define DB_GET          2
 #define DB_UPDATE       3
 #define DB_DELETE       4
+#define DB_CHECK        5
 
 static char *DbName(void);
 static char *DbDbType(void);
@@ -89,11 +90,11 @@ static DB_ENV *dbEnv = 0;
 static char *dbDelimiter = "\n";
 static char *dbName = "BerkeleyDB";
 static unsigned int dbHFactor = 0;
-static unsigned int dbDbFlags = 0;
 static unsigned int dbBtMinKey = 0;
 static unsigned int dbPageSize = 0;
 static unsigned int dbCacheSize = 0;
-static unsigned int dbEnvFlags = DB_CREATE | DB_THREAD | DB_INIT_MPOOL;
+static unsigned int dbDbFlags = DB_READ_UNCOMMITTED;
+static unsigned int dbEnvFlags = DB_CREATE | DB_THREAD | DB_INIT_MPOOL | DB_READ_UNCOMMITTED;
 static Tcl_HashTable dbTable;
 static Ns_Mutex dbLock;
 
@@ -138,6 +139,8 @@ NS_EXPORT int Ns_DbDriverInit(char *hModule, char *configPath)
         str = "";
     if (strstr(str, "dup"))
         dbDbFlags |= DB_DUP;
+    if (!strstr(str, "onlycommited"))
+        dbDbFlags &= ~DB_READ_UNCOMMITTED;
 
     // Environment flags
     if (!(str = Ns_ConfigGetValue(configPath, "envflags")))
@@ -150,6 +153,9 @@ NS_EXPORT int Ns_DbDriverInit(char *hModule, char *configPath)
         dbEnvFlags |= DB_INIT_TXN | DB_RECOVER;
     if (!strstr(str, "noprivate"))
         dbEnvFlags |= DB_PRIVATE;
+    if (!strstr(str, "onlycommited"))
+        dbEnvFlags &= ~DB_READ_UNCOMMITTED;
+
     if (dbCacheSize)
         dbEnv->set_cachesize(dbEnv, 0, dbCacheSize, 0);
     dbEnv->set_lk_detect(dbEnv, DB_LOCK_DEFAULT);
@@ -365,7 +371,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
     /* Open cursor and retrieve all matching records */
     if (!strncasecmp(query, "CURSOR", 6)) {
         conn->cmd = DB_SELECT;
-        if ((conn->status = conn->db->cursor(conn->db, NULL, &conn->cursor, DB_DIRTY_READ)) != 0) {
+        if ((conn->status = conn->db->cursor(conn->db, NULL, &conn->cursor, DB_READ_UNCOMMITTED)) != 0) {
             conn->db->err(conn->db, conn->status, "DB->cursor");
             Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
             return NS_ERROR;
@@ -398,7 +404,30 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         conn->key.data = query + 4;
         conn->key.size = strlen(conn->key.data) + 1;
         conn->data.flags = DB_DBT_MALLOC;
-        conn->status = conn->db->get(conn->db, NULL, &conn->key, &conn->data, 0);
+        conn->status = conn->db->get(conn->db, NULL, &conn->key, &conn->data, DB_READ_UNCOMMITTED);
+        switch (conn->status) {
+        case 0:
+        case DB_NOTFOUND:
+            handle->fetchingRows = 1;
+            return NS_ROWS;
+        default:
+            conn->db->err(conn->db, conn->status, "DB->get");
+            Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
+            return NS_ERROR;
+        }
+    }
+
+    /* Returns 1 if entry exists */
+    if (!strncasecmp(query, "CHECK ", 6)) {
+        conn->cmd = DB_CHECK;
+        conn->key.data = query + 6;
+        conn->key.size = strlen(conn->key.data) + 1;
+        if ((conn->status = conn->db->cursor(conn->db, NULL, &conn->cursor, DB_READ_UNCOMMITTED)) != 0) {
+            conn->db->err(conn->db, conn->status, "DB->cursor");
+            Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
+            return NS_ERROR;
+        }
+        conn->status = conn->cursor->c_get(conn->cursor, &conn->key, &conn->data, DB_SET);
         switch (conn->status) {
         case 0:
         case DB_NOTFOUND:
@@ -435,6 +464,12 @@ static int DbGetRow(Ns_DbHandle * handle, Ns_Set * row)
     }
 
     switch (conn->cmd) {
+    case DB_CHECK:
+        // Only one record should be returned
+        conn->status = DB_NOTFOUND;
+        Ns_SetPutValue(row, 0, "1");
+        return NS_OK;
+
     case DB_GET:
         // Only one record should be returned
         conn->status = DB_NOTFOUND;

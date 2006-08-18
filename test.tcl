@@ -12,6 +12,12 @@ set query [ns_db 0or1row $db "GET key1"]
 set result [ns_set value $query 0]
 ns_log Debug GET: $result
 
+# check if record exists
+set query [ns_db 0or1row $db "CHECK key1"]
+if { $query != "" } {
+  ns_log Debug EXISTS: $key1
+}
+
 # Delete one record
 ns_db exec $db "DEL key1"
 
