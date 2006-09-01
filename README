@@ -147,6 +147,20 @@ The following commands are available:
       Example:
         ns_db $db exec "ABORT"
 
+   COMPACT
+   
+      Cmpacts Btree and Recno access method databases
+
+      Example:
+        ns_db $db exec "COMPACT"
+
+   TRUNCATE
+   
+      Empties the database
+
+      Example:
+        ns_db $db exec "TRUNCATE"
+	
 Authors
 
      Vlad Seryakov vlad@crystalballinc.com

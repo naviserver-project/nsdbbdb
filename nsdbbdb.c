@@ -286,6 +286,27 @@ static int DbExec(Ns_DbHandle * handle, char *query)
 
     DbCancel(handle);
 
+    if (!strncasecmp(query, "TRUNCATE", 8)) {
+        u_int32_t count;
+        conn->status = conn->db->truncate(conn->db, NULL, &count, 0);
+        if (!conn->status)
+            return NS_DML;
+        dbEnv->err(dbEnv, conn->status, "DB->truncate");
+        Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
+        return NS_ERROR;
+    }
+
+    if (!strncasecmp(query, "COMPACT", 7)) {
+        DB_COMPACT c_data;
+        memset(&c_data, 0, sizeof(c_data));
+        conn->status = conn->db->compact(conn->db, NULL, NULL, NULL, NULL, 0, NULL);
+        if (!conn->status)
+            return NS_DML;
+        dbEnv->err(dbEnv, conn->status, "DB->compact");
+        Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
+        return NS_ERROR;
+    }
+
     if (!strncasecmp(query, "BEGIN", 5)) {
         if (!conn->txn)
             conn->status = dbEnv->txn_begin(dbEnv, NULL, &conn->txn, 0);

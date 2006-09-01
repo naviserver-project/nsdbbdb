@@ -1,3 +1,7 @@
+2006-09-01  Vlad Seryakov  <seryakov@users.sf.net>
+
+	* added Truncate and Compact operations
+
 2006-05-01  Vlad Seryakov  <seryakov@users.sf.net>
 
 	* added atExit callback that closes still open 
