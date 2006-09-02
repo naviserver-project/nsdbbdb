@@ -93,6 +93,7 @@ static unsigned int dbHFactor = 0;
 static unsigned int dbBtMinKey = 0;
 static unsigned int dbPageSize = 0;
 static unsigned int dbCacheSize = 0;
+static unsigned int dbSyncFlags = 1;
 static unsigned int dbDbFlags = DB_READ_UNCOMMITTED;
 static unsigned int dbEnvFlags = DB_CREATE | DB_THREAD | DB_INIT_MPOOL | DB_READ_UNCOMMITTED;
 static Tcl_HashTable dbTable;
@@ -136,6 +137,7 @@ NS_EXPORT int Ns_DbDriverInit(char *hModule, char *configPath)
     Ns_ConfigGetInt(configPath, "cachesize", (int *) &dbCacheSize);
     Ns_ConfigGetInt(configPath, "hfactor", (int *) &dbHFactor);
     Ns_ConfigGetInt(configPath, "btminkey", (int *) &dbBtMinKey);
+    Ns_ConfigGetBool(configPath, "dbsync", (int *) &dbSyncFlags);
 
     // Db flags
     if (!(str = Ns_ConfigGetValue(configPath, "dbflags"))) {
@@ -267,7 +269,6 @@ static int DbOpenDb(Ns_DbHandle * handle)
     conn = ns_calloc(1, sizeof(dbConn));
     conn->db = db;
     handle->connection = conn;
-    handle->connected = NS_TRUE;
     Ns_MutexLock(&dbLock);
     Tcl_CreateHashEntry(&dbTable, (void *) conn, &rc);
     Ns_MutexUnlock(&dbLock);
@@ -283,7 +284,6 @@ static int DbCloseDb(Ns_DbHandle * handle)
     conn->db->close(conn->db, 0);
     ns_free(conn);
     handle->connection = 0;
-    handle->connected = NS_FALSE;
     Ns_MutexLock(&dbLock);
     hPtr = Tcl_FindHashEntry(&dbTable, (void *) conn);
     if (hPtr != NULL) {
@@ -558,7 +558,9 @@ static int DbFlush(Ns_DbHandle * handle)
     dbConn *conn = handle->connection;
 
     DbCancel(handle);
-    conn->db->sync(conn->db, 0);
+    if (dbSyncFlags) {
+        conn->db->sync(conn->db, 0);
+    }
     return NS_OK;
 }
 

@@ -35,6 +35,7 @@ ns_param	pagesize		0
 ns_param	cachesize		0
 ns_param	hfactor			0
 ns_param	btminkey		0
+ns_param	dbsync			true
 
 where
 
@@ -55,7 +56,8 @@ where
     hfactor         - approximation of the number of keys allowed to accumulate in 
                       any one bucket, determining when the hash table grows or shrinks.
     btminkey        - min number of keys in a btree page
-
+    dbsync          - if true, every flush will call db->sync method to flush
+                      pages to disk
 
 Query Language
 
