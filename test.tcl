@@ -1,4 +1,4 @@
-set db [ns_db gethandle berkeleydb]
+set db [ns_db gethandle bdb]
 
 # Create records
 ns_db exec $db "PUT key1\ndata1"
@@ -15,11 +15,11 @@ ns_log Debug GET: $result
 # check if record exists
 set query [ns_db 0or1row $db "CHECK key1"]
 if { $query != "" } {
-  ns_log Debug EXISTS: $key1
+  ns_log Debug EXISTS: key1
 }
 
 # Delete one record
-ns_db exec $db "DEL key1"
+catch { ns_db exec $db "DEL key1" }
 
 # Retrieve all records
 set result ""
@@ -33,4 +33,4 @@ while { [ns_db getrow $db $query] } {
 }
 ns_log Debug CURSOR: $result
 
-ns_db releasehandle $db
+#ns_db releasehandle $db

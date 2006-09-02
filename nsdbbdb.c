@@ -122,12 +122,15 @@ NS_EXPORT int Ns_DbDriverInit(char *hModule, char *configPath)
     }
     Ns_DStringInit(&ds);
     configPath = Ns_ConfigGetPath(0, 0, "db", "pool", hModule, NULL);
-    if (!(dbDelimiter = Ns_ConfigGetValue(configPath, "delimiter")))
+    if (!(dbDelimiter = Ns_ConfigGetValue(configPath, "delimiter"))) {
         dbDelimiter = "\n";
-    if ((dbHome = Ns_ConfigGetValue(configPath, "home")))
+    }
+    if ((dbHome = Ns_ConfigGetValue(configPath, "home"))) {
         Ns_DStringAppend(&ds, dbHome);
-    if (!ds.length)
+    }
+    if (!ds.length) {
         Ns_DStringPrintf(&ds, "%s/db", Ns_InfoHomePath());
+    }
     dbHome = ns_strdup(ds.string);
     Ns_ConfigGetInt(configPath, "pagesize", (int *) &dbPageSize);
     Ns_ConfigGetInt(configPath, "cachesize", (int *) &dbCacheSize);
@@ -135,29 +138,37 @@ NS_EXPORT int Ns_DbDriverInit(char *hModule, char *configPath)
     Ns_ConfigGetInt(configPath, "btminkey", (int *) &dbBtMinKey);
 
     // Db flags
-    if (!(str = Ns_ConfigGetValue(configPath, "dbflags")))
+    if (!(str = Ns_ConfigGetValue(configPath, "dbflags"))) {
         str = "";
-    if (strstr(str, "dup"))
+    }
+    if (strstr(str, "dup")) {
         dbDbFlags |= DB_DUP;
-    if (!strstr(str, "onlycommited"))
+    }
+    if (!strstr(str, "onlycommited")) {
         dbDbFlags &= ~DB_READ_UNCOMMITTED;
-
+    }
     // Environment flags
-    if (!(str = Ns_ConfigGetValue(configPath, "envflags")))
+    if (!(str = Ns_ConfigGetValue(configPath, "envflags"))) {
         str = "";
-    if (!strstr(str, "nolock"))
+    }
+    if (!strstr(str, "nolock")) {
         dbEnvFlags |= DB_INIT_LOCK;
-    if (!strstr(str, "nolog"))
+    }
+    if (!strstr(str, "nolog")) {
         dbEnvFlags |= DB_INIT_LOG;
-    if (!strstr(str, "notxn"))
+    }
+    if (!strstr(str, "notxn")) {
         dbEnvFlags |= DB_INIT_TXN | DB_RECOVER;
-    if (!strstr(str, "noprivate"))
+    }
+    if (!strstr(str, "noprivate")) {
         dbEnvFlags |= DB_PRIVATE;
-    if (!strstr(str, "onlycommited"))
+    }
+    if (!strstr(str, "onlycommited")) {
         dbEnvFlags &= ~DB_READ_UNCOMMITTED;
-
-    if (dbCacheSize)
+    }
+    if (dbCacheSize) {
         dbEnv->set_cachesize(dbEnv, 0, dbCacheSize, 0);
+    }
     dbEnv->set_lk_detect(dbEnv, DB_LOCK_DEFAULT);
     dbEnv->set_errpfx(dbEnv, "nsberkeleydb");
     dbEnv->set_errcall(dbEnv, DbError);
@@ -188,13 +199,15 @@ static void DbShutdown(void *arg)
     while (hPtr != NULL) {
         conn = (dbConn *) Tcl_GetHashKey(&dbTable, hPtr);
         if (conn->db) {
+            Ns_Log(Notice, "DbShutdown: closing %s", conn->db->fname);
             conn->db->close(conn->db, 0);
         }
         hPtr = Tcl_NextHashEntry(&search);
     }
     Tcl_DeleteHashTable(&dbTable);
-    if (dbEnv)
+    if (dbEnv) {
         dbEnv->close(dbEnv, 0);
+    }
     dbEnv = 0;
 }
 
@@ -229,18 +242,23 @@ static int DbOpenDb(Ns_DbHandle * handle)
     if (!strncmp(dbpath, "btree:", 6)) {
         dbpath += 6;
         dbtype = DB_BTREE;
-        if (dbBtMinKey)
+        if (dbBtMinKey) {
             db->set_bt_minkey(db, dbBtMinKey);
-    } else if (!strncmp(dbpath, "hash:", 5)) {
+        }
+    } else 
+    if (!strncmp(dbpath, "hash:", 5)) {
         dbpath += 5;
         dbtype = DB_HASH;
-        if (dbHFactor)
+        if (dbHFactor) {
             db->set_h_ffactor(db, dbHFactor);
+        }
     }
-    if (dbDbFlags)
+    if (dbDbFlags) {
         db->set_flags(db, dbDbFlags);
-    if (dbPageSize)
+    }
+    if (dbPageSize) {
         db->set_pagesize(db, dbPageSize);
+    }
     if ((rc = db->open(db, 0, dbpath, 0, dbtype, DB_CREATE | DB_THREAD, 0664)) != 0) {
         db->err(db, rc, "%s: open", handle->datasource);
         db->close(db, 0);
@@ -289,8 +307,9 @@ static int DbExec(Ns_DbHandle * handle, char *query)
     if (!strncasecmp(query, "TRUNCATE", 8)) {
         u_int32_t count;
         conn->status = conn->db->truncate(conn->db, NULL, &count, 0);
-        if (!conn->status)
+        if (!conn->status) {
             return NS_DML;
+        }
         dbEnv->err(dbEnv, conn->status, "DB->truncate");
         Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
         return NS_ERROR;
@@ -300,40 +319,47 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         DB_COMPACT c_data;
         memset(&c_data, 0, sizeof(c_data));
         conn->status = conn->db->compact(conn->db, NULL, NULL, NULL, NULL, 0, NULL);
-        if (!conn->status)
+        if (!conn->status) {
             return NS_DML;
+        }
         dbEnv->err(dbEnv, conn->status, "DB->compact");
         Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
         return NS_ERROR;
     }
 
     if (!strncasecmp(query, "BEGIN", 5)) {
-        if (!conn->txn)
+        if (!conn->txn) {
             conn->status = dbEnv->txn_begin(dbEnv, NULL, &conn->txn, 0);
-        if (!conn->status)
+        }
+        if (!conn->status) {
             return NS_DML;
+        }
         dbEnv->err(dbEnv, conn->status, "DB_ENV->txn_begin");
         Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
         return NS_ERROR;
     }
 
     if (!strncasecmp(query, "COMMIT", 6)) {
-        if (conn->txn)
+        if (conn->txn) {
             conn->status = conn->txn->commit(conn->txn, 0);
+        }
         conn->txn = 0;
-        if (!conn->status)
+        if (!conn->status) {
             return NS_DML;
+        }
         dbEnv->err(dbEnv, conn->status, "DB_ENV->txn_commit");
         Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
         return NS_ERROR;
     }
 
     if (!strncasecmp(query, "ABORT", 5)) {
-        if (conn->txn)
+        if (conn->txn) {
             conn->status = conn->txn->abort(conn->txn);
+        }
         conn->txn = 0;
-        if (!conn->status)
+        if (!conn->status) {
             return NS_DML;
+        }
         dbEnv->err(dbEnv, conn->status, "DB_ENV->txn_commit");
         Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
         return NS_ERROR;
@@ -344,12 +370,15 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         char *ptr, orig = 0;
         if (query[3] == '/') {
             for (ptr = query + 3; *ptr && *ptr != ' '; ptr++) {
-                if (*ptr == 'a')
+                if (*ptr == 'a') {
                     flags |= DB_APPEND;
-                else if (*ptr == 'd')
+                } else 
+                if (*ptr == 'd') {
                     flags |= DB_NODUPDATA;
-                else if (*ptr == 'o')
+                } else 
+                if (*ptr == 'o') {
                     flags |= DB_NOOVERWRITE;
+                }
             }
             conn->key.data = ptr + 1;
         } else {
@@ -368,8 +397,9 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         if (orig) {
             *ptr = orig;
         }
-        if (!conn->status)
+        if (!conn->status) {
             return NS_DML;
+        }
         // Report error situation
         conn->db->err(conn->db, conn->status, "DB->put");
         Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
@@ -381,8 +411,9 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         conn->key.data = query + 4;
         conn->key.size = strlen(conn->key.data) + 1;
         conn->status = conn->db->del(conn->db, 0, &conn->key, 0);
-        if (!conn->status)
+        if (!conn->status) {
             return NS_DML;
+        }
         // Report error situation
         conn->db->err(conn->db, conn->status, "DB->del");
         Ns_DbSetException(handle, "ERROR", db_strerror(conn->status));
@@ -559,8 +590,9 @@ static int DbCancel(Ns_DbHandle * handle)
         conn->cursor->c_close(conn->cursor);
         conn->cursor = 0;
     }
-    if (conn->txn)
+    if (conn->txn) {
         conn->txn->abort(conn->txn);
+    }
     conn->txn = 0;
     DbFree(handle);
     handle->statement = 0;
@@ -602,8 +634,9 @@ static int DbCmd(ClientData dummy, Tcl_Interp * interp, int argc, CONST char **a
         Tcl_AppendResult(interp, "wrong # args: should be ", argv[0], " cmd handle", 0);
         return TCL_ERROR;
     }
-    if (Ns_TclDbGetHandle(interp, (char *) argv[2], &handle) != TCL_OK)
+    if (Ns_TclDbGetHandle(interp, (char *) argv[2], &handle) != TCL_OK) {
         return TCL_ERROR;
+    }
     /* Make sure this is an Db handle before accessing handle->connection. */
     if (Ns_DbDriverName(handle) != dbName) {
         Tcl_AppendResult(interp, argv[1], " is not of type ", dbName, 0);
@@ -611,8 +644,9 @@ static int DbCmd(ClientData dummy, Tcl_Interp * interp, int argc, CONST char **a
     }
     // Deadlock detection
     if (!strcmp(argv[1], "deadlock")) {
-        if (dbEnv)
+        if (dbEnv) {
             dbEnv->lock_detect(dbEnv, 0, DB_LOCK_DEFAULT, 0);
+        }
     }
     return TCL_OK;
 }
