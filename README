@@ -36,6 +36,7 @@ ns_param	cachesize		0
 ns_param	hfactor			0
 ns_param	btminkey		0
 ns_param	dbsync			true
+ns_param	debug			false
 
 where
 
@@ -58,6 +59,7 @@ where
     btminkey        - min number of keys in a btree page
     dbsync          - if true, every flush will call db->sync method to flush
                       pages to disk
+    debug           - displays debugging message sin the log
 
 Query Language
 

@@ -94,6 +94,7 @@ static unsigned int dbBtMinKey = 0;
 static unsigned int dbPageSize = 0;
 static unsigned int dbCacheSize = 0;
 static unsigned int dbSyncFlags = 1;
+static unsigned int dbDebugFlags = 0;
 static unsigned int dbDbFlags = DB_READ_UNCOMMITTED;
 static unsigned int dbEnvFlags = DB_CREATE | DB_THREAD | DB_INIT_MPOOL | DB_READ_UNCOMMITTED;
 static Tcl_HashTable dbTable;
@@ -138,6 +139,7 @@ NS_EXPORT int Ns_DbDriverInit(char *hModule, char *configPath)
     Ns_ConfigGetInt(configPath, "hfactor", (int *) &dbHFactor);
     Ns_ConfigGetInt(configPath, "btminkey", (int *) &dbBtMinKey);
     Ns_ConfigGetBool(configPath, "dbsync", (int *) &dbSyncFlags);
+    Ns_ConfigGetBool(configPath, "debug", (int *) &dbDebugFlags);
 
     // Db flags
     if (!(str = Ns_ConfigGetValue(configPath, "dbflags"))) {
@@ -201,7 +203,7 @@ static void DbShutdown(void *arg)
     while (hPtr != NULL) {
         conn = (dbConn *) Tcl_GetHashKey(&dbTable, hPtr);
         if (conn->db) {
-            Ns_Log(Notice, "DbShutdown: closing %s", conn->db->fname);
+            Ns_Log(Notice, "DbShutdown: %p: closing %s", conn, conn->db->fname);
             conn->db->close(conn->db, 0);
         }
         hPtr = Tcl_NextHashEntry(&search);
@@ -271,6 +273,9 @@ static int DbOpenDb(Ns_DbHandle * handle)
     handle->connection = conn;
     Ns_MutexLock(&dbLock);
     Tcl_CreateHashEntry(&dbTable, (void *) conn, &rc);
+    if (dbDebugFlags) {
+        Ns_Log(Notice, "DbOpen: %p, open handles=%d", conn, dbTable.numEntries);
+    }
     Ns_MutexUnlock(&dbLock);
     return NS_OK;
 }
@@ -288,6 +293,9 @@ static int DbCloseDb(Ns_DbHandle * handle)
     hPtr = Tcl_FindHashEntry(&dbTable, (void *) conn);
     if (hPtr != NULL) {
         Tcl_DeleteHashEntry(hPtr);
+    }
+    if (dbDebugFlags) {
+        Ns_Log(Notice, "DbClose: %p, open handles=%d", conn, dbTable.numEntries);
     }
     Ns_MutexUnlock(&dbLock);
     return NS_OK;
