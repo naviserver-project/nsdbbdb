@@ -374,7 +374,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
     }
 
     if (!strncasecmp(query, "PUT ", 4) || !strncasecmp(query, "PUT/", 4)) {
-        int flags = 0;
+        unsigned int flags = 0;
         char *ptr, orig = 0;
         if (query[3] == '/') {
             for (ptr = query + 3; *ptr && *ptr != ' '; ptr++) {
