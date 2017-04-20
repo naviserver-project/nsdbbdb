@@ -101,8 +101,9 @@ static Tcl_HashTable dbTable;
 static Ns_Mutex dbLock;
 
 NS_EXPORT int Ns_ModuleVersion = 1;
+NS_EXPORT NsDb_DriverInitProc Ns_DbDriverInit;
 
-NS_EXPORT int Ns_DbDriverInit(char *hModule, char *configPath)
+NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
 {
     int rc;
     char *str;

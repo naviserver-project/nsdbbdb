@@ -10,7 +10,7 @@ MOD      =  nsdbbdb.so
 #
 # Objects to build.
 #
-OBJS     = nsdbbdb.o
+MODOBJS     = nsdbbdb.o
 MODLIBS  = -ldb
 
 include  $(NAVISERVER)/include/Makefile.module
