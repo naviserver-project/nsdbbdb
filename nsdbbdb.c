@@ -450,7 +450,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         switch (conn->status) {
         case 0:
         case DB_NOTFOUND:
-            handle->fetchingRows = 1;
+            handle->fetchingRows = NS_TRUE;
             return NS_ROWS;
         default:
             conn->db->err(conn->db, conn->status, "DB->c_get");
@@ -469,7 +469,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         switch (conn->status) {
         case 0:
         case DB_NOTFOUND:
-            handle->fetchingRows = 1;
+            handle->fetchingRows = NS_TRUE;
             return NS_ROWS;
         default:
             conn->db->err(conn->db, conn->status, "DB->get");
@@ -492,7 +492,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         switch (conn->status) {
         case 0:
         case DB_NOTFOUND:
-            handle->fetchingRows = 1;
+            handle->fetchingRows = NS_TRUE;
             return NS_ROWS;
         default:
             conn->db->err(conn->db, conn->status, "DB->get");
@@ -520,7 +520,7 @@ static int DbGetRow(Ns_DbHandle * handle, Ns_Set * row)
 
     if (conn->status == DB_NOTFOUND) {
         handle->statement = 0;
-        handle->fetchingRows = 0;
+        handle->fetchingRows = NS_FALSE;
         return NS_END_DATA;
     }
 
@@ -549,12 +549,12 @@ static int DbGetRow(Ns_DbHandle * handle, Ns_Set * row)
             DbFree(handle);
             return NS_OK;
         case DB_NOTFOUND:
-            handle->fetchingRows = 0;
+            handle->fetchingRows = NS_FALSE;
             return NS_END_DATA;
         default:
             conn->db->err(conn->db, rc, "DB->c_get");
             Ns_DbSetException(handle, "ERROR", db_strerror(rc));
-            handle->fetchingRows = 0;
+            handle->fetchingRows = FALSE;
             return NS_ERROR;
         }
         break;
@@ -607,7 +607,7 @@ static int DbCancel(Ns_DbHandle * handle)
     conn->txn = 0;
     DbFree(handle);
     handle->statement = 0;
-    handle->fetchingRows = 0;
+    handle->fetchingRows = NS_FALSE;
     return NS_OK;
 }
 
