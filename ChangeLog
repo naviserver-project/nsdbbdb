@@ -56,7 +56,6 @@ Date:   2006-09-01
 
     Add new operations: truncate and compact
 
-M	ChangeLog
 M	README
 M	nsdbbdb.c
 
@@ -91,7 +90,6 @@ Date:   2006-05-01
 
     Add an 'atexit' callback which closes open database handles
 
-M	ChangeLog
 M	nsdbbdb.c
 
 commit 0855f60235a4da07919ade1ddd017c69cb6e46c0
@@ -109,7 +107,6 @@ Date:   2006-04-25
 
     Fix bug with memory allocation
 
-M	ChangeLog
 M	nsdbbdb.c
 M	test.tcl
 
@@ -127,7 +124,6 @@ Date:   2006-04-17
 
     Fix bug in config initialization
 
-M	ChangeLog
 M	nsdbbdb.c
 
 commit 7627c20fcdd7724c7af71056aef8a1473fd9d6b7
@@ -145,7 +141,6 @@ Date:   2005-06-17
 
     Rename files with nsdb names for consistency
 
-A	ChangeLog
 R100	nsberkeleydb.c	nsdbbdb.c
 
 commit 6b882017d698ac86cbdb516e5be7653b52ac2a8d
