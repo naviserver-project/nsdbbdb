@@ -1,21 +1,178 @@
-2006-09-01  Vlad Seryakov  <seryakov@users.sf.net>
+commit 9918acd529996f2a783c0ef7b85f7ef9684d309a
+Author: Gustaf Neumann <neumann@wu-wien.ac.at>
+Date:   2017-12-03
 
-	* added Truncate and Compact operations
+    use consistently boolean for "fetchingRows"
 
-2006-05-01  Vlad Seryakov  <seryakov@users.sf.net>
+M	nsdbbdb.c
 
-	* added atExit callback that closes still open 
-        database connections
-        
-2006-04-25  Vlad Seryakov  <seryakov@users.sf.net>
+commit 9b16967471780a901921d4c9bb30a591fd3a0dde
+Author: Gustaf Neumann <neumann@wu-wien.ac.at>
+Date:   2017-04-20
 
-	* fixed bug with memory allocation
+    - Use NsDb_DriverInitProc as prototype (requires actual version of NaviServer)
 
-2006-04-17  Vlad Seryakov  <seryakov@users.sf.net>
+M	Makefile
+M	nsdbbdb.c
 
-	* fixed bug in the config initialization
+commit f37d83016579b8e7c3378d60a3b7546988359eeb
+Author: Gustaf Neumann <neumann@wu-wien.ac.at>
+Date:   2014-09-23
 
-2005-06-16  Vlad Seryakov  <seryakov@users.sf.net>
+    - make flags unsigned int
 
-	* nsdbbdb: initial upload
+M	nsdbbdb.c
 
+commit a9e3082e796e225f2865160c8b83c807a2989997
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-09-03
+
+    Add debugging support about handles
+
+M	README
+M	nsdbbdb.c
+
+commit 038cb2659155a858e11b9d7431d8497fd9461778
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-09-02
+
+    Experimental fix for driver hanging problem
+
+M	README
+M	nsdbbdb.c
+
+commit 360c11672c2fc39d361643c556449df2da2a35df
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-09-02
+
+    Minor updates and code cleanups
+
+M	nsdbbdb.c
+M	test.tcl
+
+commit 993f01246d6f64a40a36321ff5f9eee754b14c83
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-09-01
+
+    Add new operations: truncate and compact
+
+M	ChangeLog
+M	README
+M	nsdbbdb.c
+
+commit b34845f7ede6eb6ed4f1d267e898dc6554df1272
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-08-18
+
+    Add new command CHECK; support read-uncommited
+
+M	nsdbbdb.c
+M	test.tcl
+
+commit 13d1631f01f2e5fc213c4d2f283fd2962514b1b6
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-08-08
+
+    Reset handle on open
+
+M	nsdbbdb.c
+
+commit 01829e728a62b62fffbe84565ca8522a3a51729e
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-06-16
+
+    Run sources through indent
+
+M	nsdbbdb.c
+
+commit 3e1bdda4192e4b934e4e9974e76fd22d2bdb85c4
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-05-01
+
+    Add an 'atexit' callback which closes open database handles
+
+M	ChangeLog
+M	nsdbbdb.c
+
+commit 0855f60235a4da07919ade1ddd017c69cb6e46c0
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-04-26
+
+    Add additional flags to PUT
+
+M	README
+M	nsdbbdb.c
+
+commit 8b8235d3f80fe7588bc923151d00871913fd51a6
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-04-25
+
+    Fix bug with memory allocation
+
+M	ChangeLog
+M	nsdbbdb.c
+M	test.tcl
+
+commit 593bc8afa5915de3e5a999c53f0b848c420b442a
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-04-17
+
+    Fix misconfiguration for transactions
+
+M	nsdbbdb.c
+
+commit 43211f8db1ff97f3ba124c651eeda85584b321c8
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2006-04-17
+
+    Fix bug in config initialization
+
+M	ChangeLog
+M	nsdbbdb.c
+
+commit 7627c20fcdd7724c7af71056aef8a1473fd9d6b7
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2005-08-01
+
+    Remove old compat functions
+
+M	Makefile
+M	nsdbbdb.c
+
+commit 6b3affaa0a7ad76e7cbb7dbf83deca087c275a54
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2005-06-17
+
+    Rename files with nsdb names for consistency
+
+A	ChangeLog
+R100	nsberkeleydb.c	nsdbbdb.c
+
+commit 6b882017d698ac86cbdb516e5be7653b52ac2a8d
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2005-06-13
+
+    Silence more compiler warnings
+
+M	nsberkeleydb.c
+
+commit 0587110b42005cd26b6317e342eeb6fc3c88e627
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2005-06-08
+
+    Change license and wording in README files
+
+A	LICENSE
+M	README
+M	nsberkeleydb.c
+
+commit b2c17ace18958e16fe2c22630e3bd181a53463e3
+Author: Vlad Seryakov <vlad@crystalballinc.com>
+Date:   2005-05-20
+
+    Initial revision
+
+A	Makefile
+A	README
+A	nsberkeleydb.c
+A	test.tcl
