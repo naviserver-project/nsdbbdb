@@ -1,44 +1,63 @@
 BerkeleyDB database driver for NaviServer 4.x
-Release 0.1
+Release 0.2
 vlad@crystalballinc.com
+neumann@wu.ac.at
 
-This is NaviServer module that implements database driver for BerkeleyDB
-from www.sleepycat.com
+This is a NaviServer module that implements database driver for BerkeleyDB
+from www.sleepycat.com or with LMDB (Lightning Memory-Mapped Database).
 
 /*--------------------------------------------------------------------*/
 
 Compiling and Installing
 
-To compile this driver, you'll need to have BerkeleyDB library installed,
-current Makefile assumes that it is installed in /usr/include/ and
-library is /usr/lib/libdb.so.
+To compile this driver, you'll need to have BerkeleyDB library
+installed, current Makefile assumes that it is installed in
+/usr/include/ and library is /usr/lib/libdb.so. Alternatively one can
+use DBINCLUDE and DBLIBN to load the include file and library from
+different locations.
+
+Example:
+
+    Build with Berkeley DB 6.2.32
+    (results in nsdbbdb.so)
+
+        make DBINCLUDE=/opt/local/include/db62  DBLIB=/opt/local/lib/db62/
+
+    Build with LMDB (Lightning Memory-Mapped Database),
+    (results in nsdblmdb.so)
+
+        make LMDB=1 DBINCLUDE=/opt/local/include DBLIB=/opt/local/lib/
+
 NaviServer can be installed or source distribution may be used.
-There is variable CDFLAGS and CDLIBS in the Makefile which points to 
+There is variable CDFLAGS and CDLIBS in the Makefile which points to
 installation/distribution directory.
 
-Configuring
+Sample Configuration for Berkely DB
 
-ns_section      "ns/db/drivers"
-ns_param        berkeleydb      nsberkeleydb.so
+    ns_section  ns/db/drivers {
+        ns_param bdb  nsdbbdb.so
+    }
 
-ns_section      "ns/db/pools"
-ns_param        berkeleydb      "Berkeley DB"
+    ns_section  ns/db/pools {
+        ns_param bdb "Berkeley DB"
+    }
 
-ns_section      "ns/db/pool/berkeleydb"
-ns_param        driver                  berkeleydb
-ns_param        datasource              btree:/tmp/bdb.db
-ns_param        home                    /tmp
-ns_param	delimiter		"\n"
-ns_param	dbflags			"dup"
-ns_param	envflags		"nolog,notxn"
-ns_param	pagesize		0
-ns_param	cachesize		0
-ns_param	hfactor			0
-ns_param	btminkey		0
-ns_param	dbsync			true
-ns_param	debug			false
+    ns_section  ns/db/pool/bdb {
+        ns_param driver      bdb
+        ns_param datasource  btree:/tmp/bdb.db
+        ns_param home        /tmp
+        ns_param delimiter   "\n"
+        ns_param dbflags     "dup"
+        ns_param envflags    "nolog,notxn"
+        ns_param pagesize     0
+        ns_param cachesize    0
+        ns_param hfactor      0
+        ns_param btminkey     0
+        ns_param dbsync       true
+        ns_param debug        false
+    }
 
-where
+ where
 
     datasource      - path to database file, can be prepend with
                       btree: or hash: to specify database type.
@@ -47,19 +66,48 @@ where
     delimiter       - key and data delimiter in PUT command, default is \n
     dbflags         - flags for each database file:
                             dup  - allow duplicates
-    envflags        - flags for global DB enviromnent:
+    envflags        - flags for global DB environment:
                             notxn        - do not support transaction
                             nolog        - do not support logging/recovery
                             nolock       - do not do locking
                             noprivate    - allow other processes to access database
     pagesize        - size of the database page
     cachesize       - size of the memory cache
-    hfactor         - approximation of the number of keys allowed to accumulate in 
+    hfactor         - approximation of the number of keys allowed to accumulate in
                       any one bucket, determining when the hash table grows or shrinks.
     btminkey        - min number of keys in a btree page
     dbsync          - if true, every flush will call db->sync method to flush
                       pages to disk
     debug           - displays debugging message sin the log
+
+
+Sample Configuration for LMDB
+
+    ns_section  ns/db/drivers {
+        ns_param lmdb  nsdblmdb.so
+    }
+
+    ns_section  ns/db/pools {
+        ns_param lmdb "LMDB (Lightning Memory-Mapped Database Manager)"
+    }
+
+    ns_section  ns/db/pool/bdb {
+        ns_param driver      lmdb
+
+        ns_param home        /tmp
+        ns_param delimiter   "\n"
+        ns_param envflags    "nolock"
+        ns_param debug        false
+    }
+
+ where
+
+    home            - specifies home directory for DB environment
+    delimiter       - key and data delimiter in PUT command, default is \n
+    envflags        - flags for global DB environment:
+                            nolock       - do not do locking
+    debug           - displays debugging message sin the log
+
 
 Query Language
 
@@ -74,36 +122,36 @@ The following commands are available:
    PUT/ao key\ndata
    PUT/do key\ndata
    PUT/ado key\ndata
-   
-     Updates/adds new key/data pair to the database. By default 
+
+     Updates/adds new key/data pair to the database. By default
      delimiter between key and data is set to newline(\n) but can be changed
-     unsing delimiter ns_param options.
-     
-     Form PUT/flags adds additional flags to the put operations, any combination 
+     using delimiter ns_param options.
+
+     Form PUT/flags adds additional flags to the put operations, any combination
      of flags can be specified after /. the flags are:
-     
+
      a - DB_APPEND
      d - DB_NODUPDATA
      o - DB_NOOVERWRITE
-     
+
      Example:
         ns_db $db exec "PUT VA\nVirginia"
         ns_db $db exec "PUT VT\nVermont"
         ns_db $db exec "PUT NY\nNew York"
         ns_db $db exec "PUT/a NY\nNew York City"
-        
+
    DEL key
-   
+
       Deletes key/data pair
-      
+
       Example:
         ns_db $db exec "DEL NY"
-        
+
 
    GET key
-   
+
       Retrieves data by specified key.
-      
+
       Example:
         set query [ns_db 0or1row $db "GET VA"]
         set result [ns_set value $query 0]
@@ -111,13 +159,13 @@ The following commands are available:
 
    CURSOR
    CURSOR key
-   
-      Retrieves all or matching records. If optional key is specified, then 
-      cursor will be initially set to nearest matching record greater or 
+
+      Retrieves all or matching records. If optional key is specified, then
+      cursor will be initially set to nearest matching record greater or
       equal to the key.
-      
+
       Example:
-      
+
       set result ""
       set query [ns_db select $db "CURSOR V"]
       while { [ns_db getrow $db $query] } {
@@ -127,45 +175,51 @@ The following commands are available:
         }
         lappend result $row
       }
-      
+
 
    BEGIN
-   
+
       Starts a transaction
-      
+
       Example:
         ns_db $db exec "BEGIN"
-      
+
 
    COMMIT
-   
+
       Commits a transaction
-      
+
       Example:
         ns_db $db exec "COMMIT"
 
    ABORT
-   
+
       Aborts a transaction
 
       Example:
         ns_db $db exec "ABORT"
 
    COMPACT
-   
+
       Cmpacts Btree and Recno access method databases
 
       Example:
         ns_db $db exec "COMPACT"
 
    TRUNCATE
-   
+
       Empties the database
 
       Example:
         ns_db $db exec "TRUNCATE"
-	
+
+
+Debugging:
+
+For debugging, activate the severity Debug(bdb)
+
+     ns_logctl severity Debug(bdb) on
+
 Authors
 
      Vlad Seryakov vlad@crystalballinc.com
-

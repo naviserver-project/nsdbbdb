@@ -10,16 +10,17 @@ ns_db exec $db "PUT key5\ndata5"
 # Retrieve one record
 set query [ns_db 0or1row $db "GET key1"]
 set result [ns_set value $query 0]
-ns_log Debug GET: $result
+ns_log notice GET: $result
 
 # check if record exists
 set query [ns_db 0or1row $db "CHECK key1"]
 if { $query != "" } {
-  ns_log Debug EXISTS: key1
+  ns_log notice EXISTS: key1
 }
 
 # Delete one record
 catch { ns_db exec $db "DEL key1" }
+ns_log notice DELETED: key1
 
 # Retrieve all records
 set result ""
@@ -31,6 +32,6 @@ while { [ns_db getrow $db $query] } {
   }
   lappend result $row
 }
-ns_log Debug CURSOR: $result
+ns_log notice CURSOR: $result
 
 #ns_db releasehandle $db
