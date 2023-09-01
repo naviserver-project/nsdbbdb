@@ -56,6 +56,7 @@
 # define NS_DB_NEXT        MDB_NEXT
 # define NS_DB_DBT_REALLOC 0x10000000
 # define NS_DB_DBT_MALLOC  0x20000000
+# define NS_DB_ENV_CREATE(dbEnv)         mdb_env_create(dbEnv)
 # define NS_DB_ENV_OPEN(dbEnv,dbHome,dbEnvFlags) mdb_env_open((dbEnv), (dbHome), (dbEnvFlags), 0664)
 # define NS_DB_ENV_CLOSE(dbEnv)          mdb_env_close((dbEnv))
 # define NS_DB_ENV_TXN_BEGIN(dbEnv,txn)  mdb_txn_begin((dbEnv), NULL, 0, (txn))
@@ -91,6 +92,7 @@
 # define NS_DB_NEXT        DB_NEXT
 # define NS_DB_DBT_REALLOC DB_DBT_REALLOC
 # define NS_DB_DBT_MALLOC  DB_DBT_MALLOC
+# define NS_DB_ENV_CREATE(dbEnv)          db_env_create((dbEnv), 0)
 # define NS_DB_ENV_OPEN(dbEnv,dbHome,dbEnvFlags) dbEnv->open((dbEnv), (dbHome), (dbEnvFlags), 0)
 # define NS_DB_ENV_CLOSE(dbEnv)           (dbEnv)->close((dbEnv), 0)
 # define NS_DB_ENV_TXN_BEGIN(dbEnv,txn)   (dbEnv)->txn_begin((dbEnv), NULL, (txn), 0)
@@ -121,22 +123,23 @@
 static const char *DbName(void);
 static const char *DbDbType(void);
 static int DbServerInit(const char *hServer, char *hModule, char *hDriver);
-static int DbOpenDb(Ns_DbHandle * handle);
-static int DbCloseDb(Ns_DbHandle * handle);
-static int DbDML(Ns_DbHandle * handle, char *sql);
-static int DbGetRow(Ns_DbHandle * handle, Ns_Set * row);
-static int DbFlush(Ns_DbHandle * handle);
-static int DbCancel(Ns_DbHandle * handle);
-static int DbExec(Ns_DbHandle * handle, char *sql);
-static int DbResetHandle(Ns_DbHandle * handle);
-static int DbFree(Ns_DbHandle * handle);
+static int DbOpenDb(Ns_DbHandle *handle);
+static int DbCloseDb(Ns_DbHandle *handle);
+static int DbDML(Ns_DbHandle *handle, char *sql);
+static int DbGetRow(Ns_DbHandle *handle, Ns_Set *row);
+static int DbFlush(Ns_DbHandle *handle);
+static int DbCancel(Ns_DbHandle *handle);
+static int DbExec(Ns_DbHandle *handle, char *sql);
+static int DbResetHandle(Ns_DbHandle *handle);
+static int DbFree(Ns_DbHandle *handle);
 static void DbShutdown(void *arg);
-static Ns_Set *DbBindRow(Ns_DbHandle * handle);
+static Ns_Set *DbBindRow(Ns_DbHandle *handle);
+
 static Ns_TclTraceProc DbInterpInit;
 static Ns_LogSeverity BdbDebug;    /* Severity at which to log verbose debugging. */
 
 #ifndef LMDB
-static void DbError(const NS_DB_ENV * env, const char *errpfx, const char *msg);
+static void DbError(const NS_DB_ENV *env, const char *errpfx, const char *msg);
 #endif
 
 static Ns_DbProc dbProcs[] = {
@@ -170,6 +173,9 @@ typedef struct _dbConn {
 #endif
     int count;
 } dbConn;
+
+static int GetTempTxn(dbConn *conn, NS_DB_TXN **txnPtr);
+static void CleanTempTxn(dbConn *conn, NS_DB_TXN *txn);
 
 static const char *dbHome = NULL;
 static NS_DB_ENV *dbEnv = NULL;
@@ -222,11 +228,8 @@ NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
         Ns_Log(Error, "nsdbbdb: could not register the %s/%s driver", dbName, hModule);
         return NS_ERROR;
     }
-#ifdef LMDB
-    rc = mdb_env_create(&dbEnv);
-#else
-    rc = db_env_create(&dbEnv, 0);
-#endif
+
+    rc = NS_DB_ENV_CREATE(&dbEnv);
     if (rc != 0) {
         Ns_Log(Error, "nsdbbdb: db_env_create: %s", NS_DB_STRERR(rc));
         return NS_ERROR;
@@ -234,7 +237,8 @@ NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
 
     Ns_DStringInit(&ds);
     configPath = Ns_ConfigGetPath(0, 0, "db", "pool", hModule, (char *)0L);
-    if (!(dbDelimiter = Ns_ConfigGetValue(configPath, "delimiter"))) {
+    dbDelimiter = Ns_ConfigGetValue(configPath, "delimiter");
+    if (dbDelimiter == NULL) {
         dbDelimiter = "\n";
     }
     if ((dbHome = Ns_ConfigGetValue(configPath, "home"))) {
@@ -260,7 +264,8 @@ NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
     /*
      * DB flags
      */
-    if (!(str = Ns_ConfigGetValue(configPath, "dbflags"))) {
+    str = Ns_ConfigGetValue(configPath, "dbflags");
+    if (str == NULL) {
         str = "";
     }
     if (strstr(str, "dup")) {
@@ -428,14 +433,14 @@ static int DbOpenDb(Ns_DbHandle *handle)
 #ifdef LMDB
     Ns_Log(Warning, "nsdbbdb: ignoring '%s'", dbpath);
 #else
-    if (!strncmp(dbpath, "btree:", 6)) {
+    if (strncmp(dbpath, "btree:", 6) == 0) {
         dbpath += 6;
         dbtype = DB_BTREE;
         if (dbBtMinKey) {
             dbi->set_bt_minkey(dbi, dbBtMinKey);
         }
 
-    } else if (!strncmp(dbpath, "hash:", 5)) {
+    } else if (strncmp(dbpath, "hash:", 5) == 0) {
         dbpath += 5;
         dbtype = DB_HASH;
         if (dbHFactor) {
@@ -467,7 +472,7 @@ static int DbOpenDb(Ns_DbHandle *handle)
     return NS_OK;
 }
 
-static int DbCloseDb(Ns_DbHandle * handle)
+static int DbCloseDb(Ns_DbHandle *handle)
 {
     dbConn        *conn = handle->connection;
     Tcl_HashEntry *hPtr;
@@ -500,7 +505,7 @@ static int DbDML(Ns_DbHandle *UNUSED(handle), char *UNUSED(query))
 static int GetTempTxn(dbConn *conn, NS_DB_TXN **txnPtr)
 {
     int rc = 0;
-    if (conn->txn != NULL) {
+    if (likely(conn->txn != NULL)) {
         *txnPtr = conn->txn;
     } else {
         rc = mdb_txn_begin(dbEnv, NULL, 0, txnPtr);
@@ -510,8 +515,8 @@ static int GetTempTxn(dbConn *conn, NS_DB_TXN **txnPtr)
 
 static void CleanTempTxn(dbConn *conn, NS_DB_TXN *txn)
 {
-    if (conn->txn == NULL) {
-        if (conn->status == 0) {
+    if (likely(conn->txn == NULL)) {
+        if (likely(conn->status == 0)) {
             mdb_txn_commit(txn);
         } else {
             mdb_txn_abort(txn);
@@ -530,13 +535,83 @@ static void CleanTempTxn(dbConn *UNUSED(conn), NS_DB_TXN *UNUSED(txn))
 }
 #endif
 
-static int DbExec(Ns_DbHandle * handle, char *query)
+static int DbExec(Ns_DbHandle *handle, char *query)
 {
     dbConn    *conn = handle->connection;
     NS_DB_TXN *tempTxn;
 
     DbCancel(handle);
-    if (!strncasecmp(query, "TRUNCATE", 8)) {
+
+    /*
+     * Retrieve one matching record
+     */
+    if (strncasecmp(query, "GET ", 4) == 0) {
+        conn->cmd = DB_GET;
+        NS_DB_VAL_DATA(conn->key) = query + 4;
+        NS_DB_VAL_SIZE(conn->key) = ((NS_DB_SIZE_T)strlen(NS_DB_VAL_DATA(conn->key))) + 1;
+#ifndef LMDB
+        /*
+         * LMDB: The memory pointed to by the returned values is owned by the
+         * database, no need to free.
+         */
+        NS_DB_VAL_FLAGS(conn->data) = NS_DB_DBT_MALLOC;
+#endif
+        conn->status = GetTempTxn(conn, &tempTxn);
+        conn->status = NS_DB_DBI_GET(tempTxn, conn->dbi, &conn->key, &conn->data);
+        switch (conn->status) {
+        case 0:
+        case NS_DB_NOTFOUND:
+            handle->fetchingRows = NS_TRUE;
+            CleanTempTxn(conn, tempTxn);
+            return NS_ROWS;
+        default:
+            NS_DB_ERR0(conn->dbi, conn->status, "DB->get");
+            Ns_DbSetException(handle, "ERROR", NS_DB_STRERR(conn->status));
+            CleanTempTxn(conn, tempTxn);
+            return NS_ERROR;
+        }
+    }
+
+    /*
+     * Returns 1 if entry exists
+     */
+    if (strncasecmp(query, "CHECK ", 6) == 0) {
+        Ns_Log(BdbDebug, "... CHECK");
+        conn->cmd = DB_CHECK;
+        NS_DB_VAL_DATA(conn->key) = query + 6;
+        NS_DB_VAL_SIZE(conn->key) = ((NS_DB_SIZE_T)strlen(NS_DB_VAL_DATA(conn->key))) + 1;
+        conn->status = GetTempTxn(conn, &tempTxn);
+        conn->status = NS_DB_DBI_CURSOR_OPEN(tempTxn, conn->dbi, &conn->cursor);
+
+        if (conn->status != 0) {
+            NS_DB_ERR0(conn->dbi, conn->status, "DB->cursor");
+            Ns_DbSetException(handle, "ERROR", NS_DB_STRERR(conn->status));
+            CleanTempTxn(conn, tempTxn);
+            return NS_ERROR;
+        }
+        Ns_Log(BdbDebug, "... cursor get key '%s' len %ld",
+               (char*)NS_DB_VAL_DATA(conn->key),
+               (long)NS_DB_VAL_SIZE(conn->key));
+
+        conn->status = NS_DB_CURSOR_GET(conn->cursor, &conn->key, &conn->data, NS_DB_SET_RANGE);
+        Ns_Log(BdbDebug, "... cursor get %p rc %d", (void*)conn->cursor, conn->status);
+
+        switch (conn->status) {
+        case 0:
+        case NS_DB_NOTFOUND:
+            Ns_Log(BdbDebug, "... cursor get %p rc %d return ROWS", (void*)conn->cursor, conn->status);
+            handle->fetchingRows = NS_TRUE;
+            CleanTempTxn(conn, tempTxn);
+            return NS_ROWS;
+        default:
+            NS_DB_ERR0(conn->dbi, conn->status, "DB->get");
+            Ns_DbSetException(handle, "ERROR", NS_DB_STRERR(conn->status));
+            CleanTempTxn(conn, tempTxn);
+            return NS_ERROR;
+        }
+    }
+
+    if (strncasecmp(query, "TRUNCATE", 8) == 0) {
 #ifdef LMDB
         int rc;
         NS_DB_TXN  *txn;
@@ -559,7 +634,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         return NS_ERROR;
     }
 
-    if (!strncasecmp(query, "COMPACT", 7)) {
+    if (strncasecmp(query, "COMPACT", 7) == 0) {
 #ifdef LMDB
         Ns_Log(Warning, "nsdbbdb: command COMPACT is not supported."
                "Future versions might support 'mdb_env_copy2' with the COMPACT option");
@@ -577,7 +652,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
 #endif
     }
 
-    if (!strncasecmp(query, "BEGIN", 5)) {
+    if (strncasecmp(query, "BEGIN", 5) == 0) {
         if (conn->txn == NULL) {
             conn->status = NS_DB_ENV_TXN_BEGIN(dbEnv, &conn->txn);
         }
@@ -589,7 +664,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         return NS_ERROR;
     }
 
-    if (!strncasecmp(query, "COMMIT", 6)) {
+    if (strncasecmp(query, "COMMIT", 6) == 0) {
         if (conn->txn != NULL) {
             conn->status = NS_DB_ENV_TXN_COMMIT(conn->txn);
         }
@@ -602,7 +677,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         return NS_ERROR;
     }
 
-    if (!strncasecmp(query, "ABORT", 5)) {
+    if (strncasecmp(query, "ABORT", 5) == 0) {
         if (conn->txn != NULL) {
             conn->status = NS_DB_ENV_TXN_ABORT(conn->txn);
         }
@@ -615,7 +690,8 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         return NS_ERROR;
     }
 
-    if (!strncasecmp(query, "PUT ", 4) || !strncasecmp(query, "PUT/", 4)) {
+    if (strncasecmp(query, "PUT ", 4) == 0
+        || strncasecmp(query, "PUT/", 4) == 0) {
         unsigned int  flags = 0;
         char         *ptr, orig = 0;
 
@@ -665,7 +741,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         return NS_ERROR;
     }
 
-    if (!strncasecmp(query, "DEL ", 4)) {
+    if (strncasecmp(query, "DEL ", 4) == 0) {
         conn->cmd = DB_DELETE;
         NS_DB_VAL_DATA(conn->key) = query + 4;
         NS_DB_VAL_SIZE(conn->key) = ((NS_DB_SIZE_T)strlen(NS_DB_VAL_DATA(conn->key))) + 1;
@@ -678,7 +754,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
 #else
         conn->status = conn->dbi->del(conn->dbi, 0, &conn->key, 0);
 #endif
-        if (!conn->status) {
+        if (conn->status == 0) {
             return NS_DML;
         }
         // Report error situation
@@ -690,7 +766,7 @@ static int DbExec(Ns_DbHandle * handle, char *query)
     /*
      * Open cursor and retrieve all matching records
      */
-    if (!strncasecmp(query, "CURSOR", 6)) {
+    if (strncasecmp(query, "CURSOR", 6) == 0) {
         Ns_Log(BdbDebug, "... CURSOR");
 
         conn->cmd = DB_SELECT;
@@ -747,74 +823,10 @@ static int DbExec(Ns_DbHandle * handle, char *query)
         }
     }
 
-    /* Retrieve one matching record */
-    if (!strncasecmp(query, "GET ", 4)) {
-        conn->cmd = DB_GET;
-        NS_DB_VAL_DATA(conn->key) = query + 4;
-        NS_DB_VAL_SIZE(conn->key) = ((NS_DB_SIZE_T)strlen(NS_DB_VAL_DATA(conn->key))) + 1;
-#ifndef LMDB
-        /*
-         * LMDB: The memory pointed to by the returned values is owned by the
-         * database, no need to free.
-         */
-        NS_DB_VAL_FLAGS(conn->data) = NS_DB_DBT_MALLOC;
-#endif
-        conn->status = GetTempTxn(conn, &tempTxn);
-        conn->status = NS_DB_DBI_GET(tempTxn, conn->dbi, &conn->key, &conn->data);
-        switch (conn->status) {
-        case 0:
-        case NS_DB_NOTFOUND:
-            handle->fetchingRows = NS_TRUE;
-            CleanTempTxn(conn, tempTxn);
-            return NS_ROWS;
-        default:
-            NS_DB_ERR0(conn->dbi, conn->status, "DB->get");
-            Ns_DbSetException(handle, "ERROR", NS_DB_STRERR(conn->status));
-            CleanTempTxn(conn, tempTxn);
-            return NS_ERROR;
-        }
-    }
-
-    /* Returns 1 if entry exists */
-    if (!strncasecmp(query, "CHECK ", 6)) {
-        Ns_Log(BdbDebug, "... CHECK");
-        conn->cmd = DB_CHECK;
-        NS_DB_VAL_DATA(conn->key) = query + 6;
-        NS_DB_VAL_SIZE(conn->key) = ((NS_DB_SIZE_T)strlen(NS_DB_VAL_DATA(conn->key))) + 1;
-        conn->status = GetTempTxn(conn, &tempTxn);
-        conn->status = NS_DB_DBI_CURSOR_OPEN(tempTxn, conn->dbi, &conn->cursor);
-
-        if (conn->status != 0) {
-            NS_DB_ERR0(conn->dbi, conn->status, "DB->cursor");
-            Ns_DbSetException(handle, "ERROR", NS_DB_STRERR(conn->status));
-            CleanTempTxn(conn, tempTxn);
-            return NS_ERROR;
-        }
-        Ns_Log(BdbDebug, "... cursor get key '%s' len %ld",
-               (char*)NS_DB_VAL_DATA(conn->key),
-               (long)NS_DB_VAL_SIZE(conn->key));
-
-        conn->status = NS_DB_CURSOR_GET(conn->cursor, &conn->key, &conn->data, NS_DB_SET_RANGE);
-        Ns_Log(BdbDebug, "... cursor get %p rc %d", (void*)conn->cursor, conn->status);
-
-        switch (conn->status) {
-        case 0:
-        case NS_DB_NOTFOUND:
-            Ns_Log(BdbDebug, "... cursor get %p rc %d return ROWS", (void*)conn->cursor, conn->status);
-            handle->fetchingRows = NS_TRUE;
-            CleanTempTxn(conn, tempTxn);
-            return NS_ROWS;
-        default:
-            NS_DB_ERR0(conn->dbi, conn->status, "DB->get");
-            Ns_DbSetException(handle, "ERROR", NS_DB_STRERR(conn->status));
-            CleanTempTxn(conn, tempTxn);
-            return NS_ERROR;
-        }
-    }
     return NS_ERROR;
 }
 
-static int DbGetRow(Ns_DbHandle * handle, Ns_Set * row)
+static int DbGetRow(Ns_DbHandle *handle, Ns_Set *row)
 {
     int rc = 0;
     dbConn *conn = handle->connection;
@@ -895,7 +907,7 @@ static int DbGetRow(Ns_DbHandle * handle, Ns_Set * row)
     return NS_ERROR;
 }
 
-static int DbFlush(Ns_DbHandle * handle)
+static int DbFlush(Ns_DbHandle *handle)
 {
     DbCancel(handle);
 #ifndef LMDB
@@ -956,12 +968,12 @@ static int DbCancel(Ns_DbHandle *handle)
     return NS_OK;
 }
 
-static int DbResetHandle(Ns_DbHandle * handle)
+static int DbResetHandle(Ns_DbHandle *handle)
 {
     return DbCancel(handle);
 }
 
-static Ns_Set *DbBindRow(Ns_DbHandle * handle)
+static Ns_Set *DbBindRow(Ns_DbHandle *handle)
 {
     const dbConn *conn = handle->connection;
 
@@ -1001,7 +1013,7 @@ static int DbCmd(ClientData UNUSED(dummy), Tcl_Interp *interp, int argc, const c
         return TCL_ERROR;
     }
     // Deadlock detection
-    if (!strcmp(argv[1], "deadlock")) {
+    if (strcmp(argv[1], "deadlock") == 0) {
 #ifdef LMDB
         Ns_Log(Warning, "nsdbbdb: 'ns_berkeleydb deadlock' is not supported by LMDB.");
 #else
@@ -1014,7 +1026,7 @@ static int DbCmd(ClientData UNUSED(dummy), Tcl_Interp *interp, int argc, const c
 }
 
 
-static Ns_ReturnCode DbInterpInit(Tcl_Interp * interp, const void *arg)
+static Ns_ReturnCode DbInterpInit(Tcl_Interp *interp, const void *arg)
 {
     Tcl_CreateCommand(interp, "ns_berkeleydb", DbCmd, (void*)arg, NULL);
     return NS_OK;
