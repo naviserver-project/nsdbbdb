@@ -22,11 +22,13 @@ Example:
     (results in nsdbbdb.so)
 
         make DBINCLUDE=/opt/local/include/db62  DBLIB=/opt/local/lib/db62/
+        make DBINCLUDE=/opt/local/include/db62  DBLIB=/opt/local/lib/db62/ install
 
     Build with LMDB (Lightning Memory-Mapped Database),
     (results in nsdblmdb.so)
 
         make LMDB=1 DBINCLUDE=/opt/local/include DBLIB=/opt/local/lib/
+        make LMDB=1 DBINCLUDE=/opt/local/include DBLIB=/opt/local/lib/ install
 
 NaviServer can be installed or source distribution may be used.
 There is variable CDFLAGS and CDLIBS in the Makefile which points to

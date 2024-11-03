@@ -1,3 +1,55 @@
+commit 5b992d0cfbc4658b12c960eb56f7da9a13113808
+Author: Gustaf Neumann <neumann@wu-wien.ac.at>
+Date:   2023-09-01
+
+    minor cleanup
+    
+    - use macros consistently
+    - follow coding style more closely
+    - reorder frequent operations to the front
+
+M	nsdbbdb.c
+
+commit d2e6b0791b05dfe41523a7af31373f664719494a
+Author: Gustaf Neumann <neumann@wu-wien.ac.at>
+Date:   2023-08-31
+
+    Rework of module nsdbbdb
+    
+    - properly initializing mutex variables (many thanks to John Buckman)
+    - support for LMDB (Lightning Memory-Mapped Database)
+    - Improved configurability for Makefile (providing paths, see examples below)
+    - modernization of C code (better following style guide)
+    - use newer API functions.
+    - Added debug support via Debug(bdb)
+    
+    BDB has currently an unclear future, since sleepycat stopped
+    support. Oracle stepped in, but the newer versions use AGPL, which is
+    less permissive, leading to the decision in Debian to completely phase
+    out Berkeley DB in 2013.
+    
+    LMDB is a newer rewrite of the library, which is included in Debian,
+    used by e.g. OpenLDAP and uses the OpenLDAP Public License, which is
+    more business-friendly. LMDB is built for read-heavy workloads,
+    benchmarks show better performance.
+    
+    The slides in [1] state that in MemcacheDB LMDB reads are 2-200x
+    faster than BerkeleyDB, writes are 5-900x faster than BerkeleyDB.  The
+    slide-set contains background, motivation and several benchmarks.
+    
+    [1] http://www.lmdb.tech/media/20130329-devox-MDB.pdf
+    
+     Build with Berkeley DB 6.2.32 (results in nsdbbdb.so)
+        make DBINCLUDE=/opt/local/include/db62  DBLIB=/opt/local/lib/db62/
+    
+     Build with LMDB (Lightning Memory-Mapped Database) (results in nsdblmdb.so)
+        make LMDB=1 DBINCLUDE=/opt/local/include DBLIB=/opt/local/lib/
+
+M	Makefile
+M	README
+M	nsdbbdb.c
+M	test.tcl
+
 commit 9918acd529996f2a783c0ef7b85f7ef9684d309a
 Author: Gustaf Neumann <neumann@wu-wien.ac.at>
 Date:   2017-12-03
@@ -63,7 +115,7 @@ commit b34845f7ede6eb6ed4f1d267e898dc6554df1272
 Author: Vlad Seryakov <vlad@crystalballinc.com>
 Date:   2006-08-18
 
-    Add new command CHECK; support read-uncommited
+    Add new command CHECK; support read-uncommitted
 
 M	nsdbbdb.c
 M	test.tcl
