@@ -242,7 +242,7 @@ NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
         dbDelimiter = "\n";
     }
     if ((dbHome = Ns_ConfigGetValue(configPath, "home"))) {
-        Ns_DStringAppend(&ds, dbHome);
+        Tcl_DStringAppend(&ds, dbHome, TCL_INDEX_NONE);
     }
     if (ds.length == 0) {
         Ns_DStringPrintf(&ds, "%s/db", Ns_InfoHomePath());
