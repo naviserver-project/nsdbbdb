@@ -204,7 +204,7 @@ NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
 {
     int         rc;
     const char *str;
-    Ns_DString  ds;
+    Tcl_DString ds;
 
     if (dbEnv != NULL) {
         Ns_Log(Error, "nsdbbdb: db_env has already been initialized");
@@ -235,7 +235,7 @@ NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
         return NS_ERROR;
     }
 
-    Ns_DStringInit(&ds);
+    Tcl_DStringInit(&ds);
     configPath = Ns_ConfigGetPath(0, 0, "db", "pool", hModule, (char *)0L);
     dbDelimiter = Ns_ConfigGetValue(configPath, "delimiter");
     if (dbDelimiter == NULL) {
@@ -342,14 +342,14 @@ NS_EXPORT int Ns_DbDriverInit(const char *hModule, const char *configPath)
     if ((rc = NS_DB_ENV_OPEN(dbEnv, dbHome, dbEnvFlags)) != 0) {
         NS_DB_ENV_ERR(dbEnv, rc, "environment open");
         NS_DB_ENV_CLOSE(dbEnv);
-        Ns_DStringFree(&ds);
+        Tcl_DStringFree(&ds);
         dbEnv = NULL;
         return NS_ERROR;
     }
 
     Ns_RegisterAtExit(DbShutdown, 0);
     //Ns_Log(Notice, "%s/%s: Home=%s, Cache=%ud, Flags=%x", dbName, hModule, dbHome, dbCacheSize, dbEnvFlags);
-    Ns_DStringFree(&ds);
+    Tcl_DStringFree(&ds);
     return NS_OK;
 }
 
